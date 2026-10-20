@@ -29,7 +29,7 @@ class VoiceService : Service() {
         val LANGS = listOf("en-IN", "hi-IN", "ur-PK")
         private const val CHANNEL = "rv_voice"
         private const val NOTIF_ID = 1
-        private const val DEBOUNCE_MS = 1200L
+        private const val DEBOUNCE_MS = 200L
     }
 
     private val main = Handler(Looper.getMainLooper())
@@ -91,20 +91,37 @@ class VoiceService : Service() {
         return LANGS[i.coerceIn(0, LANGS.size - 1)]
     }
 
+    private var listenIntent: Intent? = null
+
+    private fun buildIntent() = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+        putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang())
+        putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+        putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
+        putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+        putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 200L)
+        putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 200L)
+        putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 100L)
+        putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
+    }
+
+    /** pehli baar ya error ke baad: naya recognizer */
     private fun restartNow() {
         if (stopped) return
         recognizer?.destroy()
         recognizer = SpeechRecognizer.createSpeechRecognizer(this).also {
             it.setRecognitionListener(listener)
         }
-        val i = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang())
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
-            putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
-        }
-        recognizer?.startListening(i)
+        listenIntent = buildIntent()
+        recognizer?.startListening(listenIntent)
+    }
+
+    /** tez: wahi recognizer dobara use karo (create/destroy ka delay nahi) */
+    private fun listenAgain() {
+        if (stopped) return
+        val r = recognizer
+        if (r == null) { restartNow(); return }
+        try { r.startListening(listenIntent ?: buildIntent()) } catch (e: Exception) { restartNow() }
     }
 
     private fun restartLater(ms: Long) {
@@ -116,15 +133,16 @@ class VoiceService : Service() {
         main.post { onHeard?.invoke(s) }
     }
 
-    private fun handle(list: List<String>, partial: Boolean) {
-        if (list.isEmpty()) return
+    private fun handle(list: List<String>, partial: Boolean): Boolean {
+        if (list.isEmpty()) return false
         report((if (partial) "… " else "") + list.first())
         val now = System.currentTimeMillis()
-        if (now - lastFire < DEBOUNCE_MS) return
-        val cmd = Commands.match(list) ?: return
+        if (now - lastFire < DEBOUNCE_MS) return false
+        val cmd = Commands.match(list) ?: return false
         lastFire = now
         val ok = Commands.run(cmd)
         report(if (ok) "✔ $cmd" else "✘ $cmd — Accessibility service ON nahi hai")
+        return true
     }
 
     private val listener = object : RecognitionListener {
@@ -137,13 +155,17 @@ class VoiceService : Service() {
 
         override fun onPartialResults(partialResults: Bundle?) {
             val l = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION) ?: return
-            handle(l, true)
+            if (handle(l, true)) {
+                // command mil gayi: final result ka intezar nahi, foran dobara sunna shuru
+                recognizer?.cancel()
+                main.post { listenAgain() }
+            }
         }
 
         override fun onResults(results: Bundle?) {
             val l = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
             if (l != null) handle(l, false)
-            restartLater(150)
+            main.post { listenAgain() }
         }
 
         override fun onError(error: Int) {
@@ -152,10 +174,10 @@ class VoiceService : Service() {
                     report("Mic permission nahi hai")
                     stopSelf()
                 }
-                SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> restartLater(1000)
                 SpeechRecognizer.ERROR_NO_MATCH,
-                SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> restartLater(150)
-                else -> restartLater(800)
+                SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> main.post { listenAgain() }
+                SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> restartLater(500)
+                else -> restartLater(500)
             }
         }
     }

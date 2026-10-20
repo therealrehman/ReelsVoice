@@ -22,7 +22,7 @@ object ReelActions {
             lineTo(x, m.heightPixels * toY)
         }
         val g = GestureDescription.Builder()
-            .addStroke(GestureDescription.StrokeDescription(p, 0, 220))
+            .addStroke(GestureDescription.StrokeDescription(p, 0, 70))
             .build()
         s.dispatchGesture(g, null, null)
     }
@@ -31,7 +31,7 @@ object ReelActions {
         val m = s.resources.displayMetrics
         val p = Path().apply { moveTo(m.widthPixels * 0.5f, m.heightPixels * 0.45f) }
         val g = GestureDescription.Builder()
-            .addStroke(GestureDescription.StrokeDescription(p, 0, 50))
+            .addStroke(GestureDescription.StrokeDescription(p, 0, 15))
             .build()
         s.dispatchGesture(g, null, null)
     }
@@ -43,9 +43,17 @@ object ReelActions {
 
     fun like(): Boolean {
         val s = svc() ?: return false
-        // double tap: sirf like karta hai, kabhi unlike nahi
-        tap(s)
-        handler.postDelayed({ svc()?.let { tap(it) } }, 90)
+        // double tap EK hi gesture mein (handler delay nahi): sirf like karta hai, unlike nahi
+        val m = s.resources.displayMetrics
+        val x = m.widthPixels * 0.5f
+        val y = m.heightPixels * 0.45f
+        val p1 = Path().apply { moveTo(x, y) }
+        val p2 = Path().apply { moveTo(x, y) }
+        val g = GestureDescription.Builder()
+            .addStroke(GestureDescription.StrokeDescription(p1, 0, 15))
+            .addStroke(GestureDescription.StrokeDescription(p2, 35, 15))
+            .build()
+        s.dispatchGesture(g, null, null)
         return true
     }
 
