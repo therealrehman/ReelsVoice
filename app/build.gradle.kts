@@ -11,8 +11,8 @@ android {
         applicationId = "com.oklabs.reelsvoice"
         minSdk = 26
         targetSdk = 34
-        versionCode = 5
-        versionName = "0.5-vosk"
+        versionCode = 6
+        versionName = "0.6-vosk-fix"
     }
 
     compileOptions {
@@ -24,5 +24,5 @@ android {
 
 dependencies {
     implementation("net.java.dev.jna:jna:5.13.0@aar")
-    implementation("com.alphacephei:vosk-android:0.3.47@aar")
+    implementation("com.alphacephei:vosk-android:0.3.47")
 }
