@@ -24,5 +24,5 @@ android {
 
 dependencies {
     implementation("net.java.dev.jna:jna:5.13.0@aar")
-    implementation("com.alphacephei:vosk-android:0.3.47@aar")
+    // Vosk Java classes: app/src/main/java/org/vosk (0.3.45), natives: CI jniLibs download
 }

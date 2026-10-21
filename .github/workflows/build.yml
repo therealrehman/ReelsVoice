@@ -21,6 +21,14 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Vosk native libs (0.3.45)
+        run: |
+          curl -fL -o vosk.zip https://github.com/alphacep/vosk-api/releases/download/v0.3.45/vosk-android-0.3.45.zip
+          mkdir -p app/src/main/jniLibs
+          unzip -oq vosk.zip -d app/src/main/jniLibs
+          rm -f app/src/main/jniLibs/vosk_api.h vosk.zip
+          ls -R app/src/main/jniLibs
+
       - name: Build debug APK
         run: |
           chmod +x gradlew
